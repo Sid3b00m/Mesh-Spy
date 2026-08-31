@@ -1,0 +1,79 @@
+:root {
+  --bg: #0f1216;
+  --panel: #171c22;
+  --border: #262e38;
+  --text: #dfe6ee;
+  --muted: #8b98a8;
+  --accent: #4fc3f7;
+  --meshtastic: #67d98c;
+  --meshcore: #c39cf5;
+  --warn: #f0b649;
+  --error: #f4776b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.topbar h1 { margin: 0; font-size: 18px; letter-spacing: 1px; }
+
+.muted { color: var(--muted); }
+.warn { color: var(--warn); }
+.error { color: var(--error); }
+
+a { color: var(--accent); }
+
+.login-body {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+}
+
+.login-card {
+  width: min(360px, 92vw);
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.login-card h1 { margin: 0 0 4px; font-size: 20px; }
+
+.login-card form { display: grid; gap: 6px; margin-top: 18px; }
+
+label { color: var(--muted); font-size: 12px; }
+
+input, button, select {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+button {
+  margin-top: 12px;
+  background: var(--accent);
+  color: #06202b;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover { filter: brightness(1.1); }
+button:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; filter: none; }

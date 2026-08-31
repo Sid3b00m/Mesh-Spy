@@ -1,0 +1,76 @@
+# Mesh-Spy configuration.
+#
+# Copy to config/config.yaml and edit. Values here are the defaults; anything
+# you leave out of config.yaml falls back to this file.
+
+server:
+  # Keep 127.0.0.1 unless auth is on. The app refuses to bind a LAN address
+  # with auth disabled.
+  host: "127.0.0.1"
+  # 8090, not 8080, so Mesh-Spy and Pi-Spy-RF can share a Pi.
+  port: 8090
+
+auth:
+  enabled: false
+  username: "ops"
+  # Prefer the MESH_SPY_PASSWORD environment variable over a password on disk.
+  password: ""
+
+database:
+  path: "data/mesh_spy.db"
+
+mesh:
+  # Transmitting is opt-in. While true, the send endpoints are refused even
+  # for an authenticated user, so a fresh install cannot key up a radio.
+  read_only: true
+
+  # History is trimmed on startup and hourly, because this usually runs from
+  # an SD card.
+  retention_days: 14
+  max_messages: 5000
+
+  # Reconnect backoff for a radio that drops off.
+  reconnect_min_seconds: 2.0
+  reconnect_max_seconds: 60.0
+
+  # A link with no traffic for this long is reported stale in the UI.
+  stale_after_seconds: 300
+
+  # Radios to attach to. With this list empty, Mesh-Spy runs a simulated
+  # network so the dashboard is usable before any hardware arrives. Adding a
+  # real radio suppresses the simulation. MESH_SPY_NO_DEMO=1 also disables it.
+  #
+  # Every radio needs a unique name plus network: meshtastic or meshcore.
+  radios: []
+
+  # Serial (most common: a node on USB)
+  # - name: "base"
+  #   network: meshtastic
+  #   transport: serial
+  #   port: "/dev/ttyUSB0"
+  #   baud: 115200
+  #
+  # - name: "companion"
+  #   network: meshcore
+  #   transport: serial
+  #   port: "/dev/ttyACM0"
+  #
+  # TCP (a node reachable over WiFi)
+  # - name: "roof"
+  #   network: meshtastic
+  #   transport: tcp
+  #   host: "192.168.1.50"
+  #
+  # - name: "shed"
+  #   network: meshcore
+  #   transport: tcp
+  #   host: "192.168.1.60"
+  #   tcp_port: 5000
+  #
+  # BLE. Omit address to scan. Pair the device first (bluetoothctl on Linux).
+  # pin applies to MeshCore only.
+  # - name: "handheld"
+  #   network: meshcore
+  #   transport: ble
+  #   address: "12:34:56:78:90:AB"
+  #   pin: "123456"

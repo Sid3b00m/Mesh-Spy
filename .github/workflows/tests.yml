@@ -1,0 +1,49 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # The installer only ever runs on Linux, which the test suite cannot
+      # exercise, so static analysis is the safety net.
+      - name: Check shell scripts
+        run: |
+          shellcheck --shell=bash --severity=style install.sh run.sh
+          shellcheck --shell=bash --severity=style \
+            --exclude=SC2034,SC2154 scripts/mesh-spy.openrc
+
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # meshtastic requires >=3.9,<3.15.
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Lint for dead code and undefined names
+        run: python -m pyflakes app tests
+
+      - name: Run test suite
+        run: python -m pytest
