@@ -1,0 +1,40 @@
+# Mesh-Spy: non-root access to USB-serial Meshtastic and MeshCore nodes.
+#
+# Most distros already give /dev/ttyUSB* and /dev/ttyACM* to a serial group, so
+# these rules are mainly a backstop: they pin the group for the USB-serial
+# bridges these radios actually use, on systems where the default differs or
+# where a native-USB board comes up owned by root alone.
+#
+# uaccess covers an interactive desktop login. It does not cover the system
+# user a service runs as, which is why the group matters here.
+#
+# install.sh copies this to /etc/udev/rules.d/ and substitutes the group
+# (dialout on Debian, Fedora and Alpine; uucp on Arch and openSUSE).
+# By hand: edit GROUP below, copy it there, then
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+
+# Silicon Labs CP210x - Heltec, LILYGO T-Beam, most ESP32 boards
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", MODE="0660", GROUP="dialout", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea70", MODE="0660", GROUP="dialout", TAG+="uaccess"
+
+# WCH CH340 / CH341 / CH9102 - cheaper ESP32 boards
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", MODE="0660", GROUP="dialout", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7522", MODE="0660", GROUP="dialout", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d4", MODE="0660", GROUP="dialout", TAG+="uaccess"
+
+# FTDI FT232 - older and industrial boards
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", MODE="0660", GROUP="dialout", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", MODE="0660", GROUP="dialout", TAG+="uaccess"
+
+# Espressif native USB CDC - ESP32-S3 and ESP32-C3 boards with no bridge chip
+SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", MODE="0660", GROUP="dialout", TAG+="uaccess"
+
+# Nordic nRF52840 native USB CDC - RAK4631, Adafruit and clone bootloaders
+SUBSYSTEM=="tty", ATTRS{idVendor}=="239a", MODE="0660", GROUP="dialout", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1915", MODE="0660", GROUP="dialout", TAG+="uaccess"
+
+# Seeed Studio XIAO nRF52840
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2886", MODE="0660", GROUP="dialout", TAG+="uaccess"
+
+# Raspberry Pi RP2040 native USB CDC - Pico-based nodes
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", MODE="0660", GROUP="dialout", TAG+="uaccess"

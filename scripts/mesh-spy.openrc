@@ -1,0 +1,31 @@
+#!/sbin/openrc-run
+# Mesh-Spy service for OpenRC systems (Alpine, Gentoo, Devuan, Artix).
+# install.sh rewrites the user and paths below; edit them if installing by hand.
+#
+# Serial access comes from the supplementary groups of command_user, which
+# start-stop-daemon applies at exec, so the user must be in dialout or uucp.
+
+name="mesh-spy"
+description="Mesh-Spy unified Meshtastic and MeshCore console"
+
+command="/home/pi/Mesh-Spy/.venv/bin/python"
+command_args="-m app.main"
+command_user="pi"
+command_background=true
+directory="/home/pi/Mesh-Spy"
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/${RC_SVCNAME}.log"
+error_log="/var/log/${RC_SVCNAME}.log"
+
+# Set MESH_SPY_PASSWORD here, or better, in a root-only file sourced at boot.
+# export MESH_SPY_PASSWORD="..."
+
+depend() {
+	need net
+	after firewall bluetooth
+}
+
+start_pre() {
+	checkpath --directory --owner "$command_user" --mode 0755 "$directory/data"
+	checkpath --file --owner "$command_user" --mode 0644 "$output_log"
+}

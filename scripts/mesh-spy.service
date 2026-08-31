@@ -1,0 +1,32 @@
+[Unit]
+Description=Mesh-Spy unified Meshtastic and MeshCore console
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+# No Group= on purpose. A user's primary group is not reliably named after the
+# user, and naming one that does not exist fails the unit outright.
+# A USB node shows up as /dev/ttyUSB* or /dev/ttyACM*, owned by dialout on
+# Debian, Fedora and Alpine but uucp on Arch and openSUSE. install.sh
+# substitutes whichever this system uses.
+SupplementaryGroups=dialout
+WorkingDirectory=/home/pi/Mesh-Spy
+# Prefer: EnvironmentFile=-/etc/mesh-spy.env  (chmod 600) with MESH_SPY_PASSWORD=...
+Environment=MESH_SPY_PASSWORD=
+ExecStart=/home/pi/Mesh-Spy/.venv/bin/python -m app.main
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/pi/Mesh-Spy/data /home/pi/Mesh-Spy/config
+# A BLE radio reaches bluetoothd over the system bus, which ProtectSystem
+# would otherwise make read-only. The leading dash keeps the unit valid on a
+# host with no D-Bus.
+ReadWritePaths=-/run/dbus
+
+[Install]
+WantedBy=multi-user.target

@@ -19,6 +19,9 @@ _NETWORKS = ("meshtastic", "meshcore")
 # shell, a path, or an SQL identifier.
 _NODE_ID_RE = re.compile(r"^[A-Za-z0-9!._:-]{1,80}$")
 _RADIO_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$")
+# Metric names are ours, not the radio's, but they arrive back as path
+# segments so they still get checked.
+_METRIC_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 
 
 def validate_network(value: str | None) -> str | None:
@@ -36,6 +39,13 @@ def validate_node_id(value: str) -> str:
     if not _NODE_ID_RE.match(node_id):
         raise ValueError("invalid node id")
     return node_id
+
+
+def validate_metric(value: str) -> str:
+    metric = (value or "").strip().lower()
+    if not _METRIC_RE.match(metric):
+        raise ValueError("invalid metric name")
+    return metric
 
 
 def validate_radio_name(value: str) -> str:

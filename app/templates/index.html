@@ -10,8 +10,122 @@
   <header class="topbar">
     <h1>Mesh-Spy</h1>
     <span class="muted">v{{ version }}</span>
+
+    <div class="filters" role="group" aria-label="Filter by network">
+      <button type="button" class="chip is-active" data-network="">All</button>
+      <button type="button" class="chip net-meshtastic" data-network="meshtastic">Meshtastic</button>
+      <button type="button" class="chip net-meshcore" data-network="meshcore">MeshCore</button>
+    </div>
+
+    <div class="spacer"></div>
+
+    <span id="counts" class="muted"></span>
+    <span id="conn" class="badge badge-wait" title="Live update stream">connecting</span>
+    {% if auth_on %}<a class="muted" href="/logout">sign out</a>{% endif %}
   </header>
-  <main id="app"></main>
+
+  <div id="banners">
+    <p id="demo-banner" class="banner banner-warn" hidden>
+      No radio is configured, so this is a <strong>simulated network</strong>. Add
+      a radio under <code>mesh.radios</code> in <code>config/config.yaml</code>,
+      or set <code>MESH_SPY_NO_DEMO=1</code> to serve an empty console.
+    </p>
+    {% if read_only %}
+    <p class="banner banner-info">
+      <strong>Read-only.</strong> Transmitting is disabled. Set
+      <code>mesh.read_only: false</code> in <code>config/config.yaml</code> to
+      enable the send form.
+    </p>
+    {% endif %}
+  </div>
+
+  <main class="grid">
+    <section class="panel panel-wide">
+      <h2>Links</h2>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Radio</th><th>Network</th><th>Transport</th><th>Target</th>
+            <th>State</th><th>Node</th><th>Silent for</th><th>Retries</th>
+          </tr>
+        </thead>
+        <tbody id="links"></tbody>
+      </table>
+      <p class="empty" id="links-empty" hidden>No radios configured.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Nodes <span id="nodes-count" class="muted"></span></h2>
+      <div class="scroll">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Node</th><th>Net</th><th>Hops</th><th>SNR</th>
+              <th>RSSI</th><th>Batt</th><th>Position</th><th>Heard</th>
+            </tr>
+          </thead>
+          <tbody id="nodes"></tbody>
+        </table>
+      </div>
+      <p class="empty" id="nodes-empty" hidden>Nothing heard yet.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Messages <span id="messages-count" class="muted"></span></h2>
+      <div class="scroll" id="messages-scroll">
+        <ul class="messages" id="messages"></ul>
+      </div>
+      <p class="empty" id="messages-empty" hidden>No messages yet.</p>
+    </section>
+
+    {% if not read_only %}
+    <section class="panel panel-wide">
+      <h2>Send</h2>
+      {% if not auth_on %}
+        <p class="banner banner-warn">
+          Transmitting requires auth even on localhost. Set
+          <code>auth.enabled: true</code> and <code>MESH_SPY_PASSWORD</code>,
+          then sign in.
+        </p>
+      {% endif %}
+      <form id="send-form" class="send-form" autocomplete="off">
+        <div class="field">
+          <label for="send-network">Network</label>
+          <select id="send-network" name="network">
+            <option value="meshtastic">Meshtastic</option>
+            <option value="meshcore">MeshCore</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="send-link">Radio</label>
+          <input id="send-link" name="link" placeholder="auto" size="10">
+        </div>
+        <div class="field">
+          <label for="send-dest">To</label>
+          <input id="send-dest" name="dest" placeholder="broadcast" size="16">
+        </div>
+        <div class="field">
+          <label for="send-channel">Ch</label>
+          <input id="send-channel" name="channel" type="number" min="0" max="7" value="0" size="2">
+        </div>
+        <div class="field field-grow">
+          <label for="send-text">Message</label>
+          <input id="send-text" name="text" maxlength="{{ message_max }}" required
+                 placeholder="up to {{ message_max }} characters">
+        </div>
+        <button type="submit" id="send-button" {% if not auth_on %}disabled{% endif %}>Transmit</button>
+      </form>
+      <p class="empty" id="send-status" role="status"></p>
+    </section>
+    {% endif %}
+
+    <section class="panel panel-wide">
+      <h2>Telemetry <span class="muted">last {{ spark_points }} samples</span></h2>
+      <div class="series" id="series"></div>
+      <p class="empty" id="series-empty" hidden>No telemetry yet.</p>
+    </section>
+  </main>
+
   <script src="/static/js/app.js"></script>
 </body>
 </html>

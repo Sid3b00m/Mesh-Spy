@@ -35,10 +35,20 @@ log = logging.getLogger("mesh-spy")
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     (ROOT / "data").mkdir(parents=True, exist_ok=True)
+    from app.core.mesh.registry import MeshRegistry, set_registry
     from app.core.mesh.store import init_db
 
     init_db()
-    yield
+    registry = MeshRegistry()
+    set_registry(registry)
+    await registry.start()
+    try:
+        yield
+    finally:
+        # Radios hold serial ports and BLE handles, so a clean close matters
+        # more here than it does for a read-only dashboard.
+        await registry.stop()
+        set_registry(None)
 
 
 app = FastAPI(title="Mesh-Spy", version=__version__, lifespan=lifespan)
@@ -107,11 +117,16 @@ def logout(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
+    from app.core.mesh.store import SPARK_POINTS
+    from app.core.security import MESSAGE_MAX_CHARS
+
     cfg = get_config()
     ctx = {
         "version": __version__,
         "auth_on": auth_enabled(),
         "read_only": cfg.mesh.read_only,
+        "spark_points": SPARK_POINTS,
+        "message_max": MESSAGE_MAX_CHARS,
     }
     return templates.TemplateResponse(request, "index.html", ctx)
 
