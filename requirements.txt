@@ -9,3 +9,7 @@ python-multipart>=0.0.12
 meshtastic>=2.7.10
 # MIT.
 meshcore>=2.3.9
+# Arrives via meshtastic anyway, but app/core/ports.py imports it directly to
+# enumerate serial ports the same way on Windows, Linux and macOS, so it is
+# declared rather than relied on as someone else's transitive dependency.
+pyserial>=3.5

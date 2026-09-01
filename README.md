@@ -4,7 +4,8 @@ One web console for both mesh stacks. Meshtastic and MeshCore radios attach
 side by side, and their nodes, messages and telemetry land in a single
 dashboard that updates live over server-sent events.
 
-Runs on a Raspberry Pi. No JavaScript build step, no CDN, no cloud service.
+Runs on Windows, a Raspberry Pi, or any Linux. No JavaScript build step, no
+CDN, no cloud service.
 
 ```
                                  ┌──────────────────┐
@@ -38,45 +39,63 @@ the nodes table.
 
 ## Install
 
-On a Pi, Debian, Ubuntu, Mint, Fedora, RHEL, Arch, openSUSE, Alpine, Void or
-Gentoo:
+One command, the same on Windows, Raspberry Pi OS, any Linux and macOS:
 
-```bash
-git clone https://github.com/YOURNAME/Mesh-Spy.git
-cd Mesh-Spy
-sudo ./install.sh
+```
+python bootstrap.py
 ```
 
-That installs system packages, builds a virtualenv, copies the example config,
-adds you to the serial group, installs a udev rule, and enables a systemd or
-OpenRC service. Then open <http://127.0.0.1:8090>.
+That builds the virtualenv, installs dependencies, writes the first config and
+starts the console at <http://127.0.0.1:8090>. It needs nothing but Python 3.9
+or newer, never needs root, and writes nothing outside the project directory.
 
 With no radio configured, the console starts a **simulated network** so the
 dashboard is fully usable before any hardware arrives. Simulated links are
 labelled `demo` and cannot transmit.
 
-Overrides, if the defaults do not suit:
+For auto-start at boot, serial permissions and system packages, use the
+platform installer instead:
 
-| Variable | Effect |
-| --- | --- |
-| `INSTALL_PACKAGES=0` | set up the Python app only, skip system packages |
-| `ENABLE_SERVICE=0` | do not install an auto-start service |
-| `SERVICE_USER=name` | run the service as this user |
-| `SERIAL_GROUP=name` | grant serial access via this group instead of autodetecting |
+| Platform | Install | Starts automatically via |
+| --- | --- | --- |
+| Windows 10, 11 | double-click `install.bat` | a logon scheduled task |
+| Raspberry Pi OS, Debian, Ubuntu, Mint, Fedora, RHEL, Arch, openSUSE, Gentoo | `sudo ./install.sh` | systemd |
+| Alpine, Void | `sudo ./install.sh` | OpenRC |
+| macOS | `python3 bootstrap.py` | not provided |
 
-To run it without installing anything system-wide:
+The Windows installer also installs Python for you if it is missing, and needs
+no Administrator prompt. Both installers delegate the Python setup to the same
+`bootstrap.py`, so there is one definition of a working install rather than
+one per platform.
 
-```bash
-./run.sh
-```
+Day to day:
+
+| | Windows | Linux, Pi, macOS |
+| --- | --- | --- |
+| Start | `run.bat` | `./run.sh` |
+| List serial ports | `run.bat --list-ports` | `./run.sh --list-ports` |
+| Rebuild the virtualenv | `python bootstrap.py --recreate` | same |
+
+Dependencies are only reinstalled when `requirements.txt` changes, so a restart
+takes about a second rather than re-resolving the tree.
+
+[docs/INSTALL.md](docs/INSTALL.md) has the per-OS detail: Windows drivers,
+LAN exposure, updating, uninstalling and troubleshooting.
 
 ## Attaching a radio
 
-Find the port:
+Find the port. This works the same on every platform, and prints the config
+block to paste:
 
-```bash
-ls -l /dev/serial/by-id/
 ```
+python bootstrap.py --list-ports
+```
+
+Ports look like `COM7` on Windows, `/dev/ttyUSB0` or `/dev/ttyACM0` on Linux,
+and `/dev/cu.usbserial-0001` on macOS. On Linux the command also reports a
+`/dev/serial/by-id/` path where one exists, which is worth preferring: `ttyUSB`
+numbering follows probe order, so a config pinned to `ttyUSB0` can point at the
+wrong radio after a reboot with two attached.
 
 Then add the radio to `config/config.yaml` under `mesh.radios`. Each entry
 needs a unique `name` and a `network` of `meshtastic` or `meshcore`:
@@ -98,7 +117,8 @@ mesh:
 
 `transport` can be `serial`, `tcp` or `ble`. TCP takes `host` and an optional
 `tcp_port`; BLE takes an optional `address` (omit it to scan) and, for MeshCore,
-a `pin`. Pair a BLE device with `bluetoothctl` before pointing Mesh-Spy at it.
+a `pin`. Pair a BLE device first: `bluetoothctl` on Linux, Settings > Bluetooth
+on Windows.
 
 Adding any real radio suppresses the simulated network. `MESH_SPY_NO_DEMO=1`
 disables it unconditionally, which is what CI uses.
@@ -107,6 +127,10 @@ Restart after editing the config:
 
 ```bash
 sudo systemctl restart mesh-spy    # or: sudo rc-service mesh-spy restart
+```
+
+```powershell
+Stop-ScheduledTask Mesh-Spy; Start-ScheduledTask Mesh-Spy
 ```
 
 If a radio fails to open, the link is marked down and retried with exponential
@@ -207,41 +231,65 @@ where it makes sense.
 
 ## Development
 
-```bash
-python -m venv .venv
-.venv/bin/pip install -r requirements-dev.txt
-.venv/bin/python -m pytest
-.venv/bin/python -m pyflakes app tests
 ```
+python bootstrap.py --dev --setup-only
+```
+
+Then, on Linux, a Pi or macOS:
+
+```bash
+.venv/bin/python -m pytest
+.venv/bin/python -m pyflakes app tests bootstrap.py
+```
+
+On Windows the interpreter is at `.venv\Scripts\python.exe` instead; that path
+difference is the whole reason `bootstrap.py` exists rather than a shell script
+per platform.
 
 The tests need no radio. Adapters take an injected transport, so they run
 against recorded `meshtastic` packet dicts and `meshcore` event objects.
 [docs/normalization.md](docs/normalization.md) has the field-by-field mapping
 between the two protocols, which is what to read before touching an adapter.
 
-CI runs pytest on Python 3.11 and 3.12 (`meshtastic` requires `>=3.9,<3.15`),
-plus shellcheck on the shell scripts. Shell scripts and text files must use LF
-endings; `.gitattributes` enforces that, and a test asserts it, because this was
-partly written on a Windows host that defaults to UTF-16 and CRLF.
+CI runs pytest on Python 3.11 and 3.12 (`meshtastic` requires `>=3.9,<3.15`) on
+both Ubuntu and Windows, plus shellcheck on the shell scripts and
+PSScriptAnalyzer on the PowerShell. Text files must use LF endings, except
+`.bat` which cmd.exe wants as CRLF; `.gitattributes` enforces both and a test
+asserts it, because this was partly written on a Windows host that defaults to
+UTF-16 and CRLF.
 
 ## Troubleshooting
 
-**Permission denied on the serial port.** Group membership applies at next
-login, so log out and back in after installing, and replug the node so the udev
-rule takes effect. Check with `id` that you are in `dialout` or `uucp`.
+[docs/INSTALL.md](docs/INSTALL.md#troubleshooting) covers this per platform.
+The ones that come up most:
+
+**Everything says `demo`.** No radio is configured, so the simulated network is
+running. Add one under `mesh.radios`.
+
+**No serial ports found.** Run `./run.sh --list-ports` (or `run.bat
+--list-ports`). If it finds nothing, suspect the cable: a lot of USB cables
+sold with small electronics are charge-only.
+
+**Permission denied on the serial port (Linux).** Group membership applies at
+next login, so log out and back in after installing, and replug the node so the
+udev rule takes effect. Check with `id` that you are in `dialout` or `uucp`.
+
+**Access is denied on COM7 (Windows).** Something else holds the port, usually
+the Meshtastic web flasher or a serial terminal left open. If the port never
+appears at all, the CP210x or CH340 driver is missing.
 
 **The service dies with `203/EXEC` on Fedora or RHEL.** SELinux will not let
 systemd execute anything labelled `user_home_t`. `install.sh` relabels
 `.venv/bin` as `bin_t` to fix this; if you built the venv by hand afterwards,
 run `sudo restorecon -R .venv/bin`.
 
-**A BLE radio never connects.** Pair it with `bluetoothctl` first, confirm
-`bluez` is installed and `bluetooth.service` is running, and remember that a
-node already connected to a phone app will not accept a second connection.
+**A BLE radio never connects.** Pair it first, confirm the Bluetooth stack is
+running, and remember that a node already connected to a phone app will not
+accept a second connection.
 
-**Everything says `demo`.** No radio is configured. Add one under `mesh.radios`.
-
-**Logs.** `journalctl -u mesh-spy -f`, or `/var/log/mesh-spy.log` under OpenRC.
+**Logs.** `journalctl -u mesh-spy -f` under systemd, `/var/log/mesh-spy.log`
+under OpenRC, `data\mesh-spy.log` for the Windows logon task. Setting
+`MESH_SPY_LOG_FILE` overrides all three.
 
 ## License
 

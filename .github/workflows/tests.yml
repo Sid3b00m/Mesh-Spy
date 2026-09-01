@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # The installer only ever runs on Linux, which the test suite cannot
+      # install.sh only ever runs on Linux, which the test suite cannot
       # exercise, so static analysis is the safety net.
       - name: Check shell scripts
         run: |
@@ -20,11 +20,35 @@ jobs:
           shellcheck --shell=bash --severity=style \
             --exclude=SC2034,SC2154 scripts/mesh-spy.openrc
 
+  powershell:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # The same argument as shellcheck above: nothing else catches a typo in
+      # install.ps1 before it runs on somebody's machine. Registering a logon
+      # task and calling winget are not things CI can safely execute, so this
+      # parses and lints rather than running it.
+      - name: Check PowerShell scripts
+        shell: pwsh
+        run: |
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser `
+            -SkipPublisherCheck
+          $results = Invoke-ScriptAnalyzer -Path install.ps1 -Severity Error,Warning
+          if ($results) {
+            $results | Format-Table -AutoSize | Out-String | Write-Host
+            throw "PSScriptAnalyzer reported $($results.Count) issue(s)."
+          }
+          Write-Host 'install.ps1 is clean.'
+
   pytest:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        # Windows is not incidental here: the virtualenv layout differs
+        # (Scripts vs bin), so a Linux-only run proves half the install.
+        os: [ubuntu-latest, windows-latest]
         # meshtastic requires >=3.9,<3.15.
         python-version: ["3.11", "3.12"]
 
@@ -43,7 +67,16 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Lint for dead code and undefined names
-        run: python -m pyflakes app tests
+        run: python -m pyflakes app tests bootstrap.py
 
       - name: Run test suite
         run: python -m pytest
+
+      # Proves the documented one-liner works from a clean checkout on this
+      # platform, which is the claim most likely to rot unnoticed. It builds
+      # its own virtualenv beside the one CI already installed into.
+      - name: Check the cross-platform entrypoint sets up from scratch
+        run: python bootstrap.py --setup-only
+
+      - name: Check port discovery runs without a radio
+        run: python bootstrap.py --list-ports

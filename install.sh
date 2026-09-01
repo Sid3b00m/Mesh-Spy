@@ -11,6 +11,10 @@
 #   ENABLE_SERVICE=0      do not install an auto-start service
 #   SERVICE_USER=name     run the service as this user (default: the sudo caller)
 #   SERIAL_GROUP=name     group granted serial access (default: autodetected)
+#   RECREATE_VENV=1       delete and rebuild .venv from scratch
+#
+# Windows is not handled here; it has install.ps1. Both delegate the Python
+# setup to bootstrap.py, which is also usable on its own on any platform.
 set -euo pipefail
 
 INSTALL_DIR="${INSTALL_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -108,7 +112,7 @@ install_system_packages() {
     none)
       warn "No supported package manager found."
       warn "Tried: apt-get, dnf, yum, pacman, zypper, apk, xbps-install, emerge."
-      warn "Install these yourself, then re-run: python3 3.11+ with venv and pip,"
+      warn "Install these yourself, then re-run: python3 3.9+ with venv and pip,"
       warn "git, and (only if you want BLE radios) bluez."
       ;;
   esac
@@ -140,7 +144,7 @@ run_as_user() {
 
 PYTHON_BIN="$(command -v python3 || command -v python || true)"
 if [[ -z "$PYTHON_BIN" ]]; then
-  warn "Python 3 not found. Install Python 3.11+ and re-run this script."
+  warn "Python 3 not found. Install Python 3.9 or newer and re-run this script."
   exit 1
 fi
 
@@ -150,12 +154,16 @@ if ! "$PYTHON_BIN" -c 'import sys; sys.exit(0 if (3, 9) <= sys.version_info < (3
   warn "$("$PYTHON_BIN" --version 2>&1) is outside the range meshtastic supports (3.9 - 3.14)."
 fi
 
-log "Creating Python virtual environment..."
-if [[ ! -d "$INSTALL_DIR/.venv" ]]; then
-  run_as_user "$PYTHON_BIN" -m venv "$INSTALL_DIR/.venv"
+# The virtualenv, the dependencies, config/config.yaml and data/ are all
+# bootstrap.py's job. It is the same code Windows and macOS run, so there is
+# one place where "what a working install looks like" is defined rather than
+# three that drift apart.
+log "Setting up the virtual environment and dependencies..."
+BOOTSTRAP_ARGS=(--setup-only)
+if [[ "${RECREATE_VENV:-0}" == "1" ]]; then
+  BOOTSTRAP_ARGS+=(--recreate)
 fi
-run_as_user "$INSTALL_DIR/.venv/bin/pip" install -q --upgrade pip
-run_as_user "$INSTALL_DIR/.venv/bin/pip" install -q -r "$INSTALL_DIR/requirements.txt"
+run_as_user "$PYTHON_BIN" "$INSTALL_DIR/bootstrap.py" "${BOOTSTRAP_ARGS[@]}"
 
 # Under SELinux everything below /home is labelled user_home_t, which systemd is
 # not permitted to execute, so the unit dies with 203/EXEC ("Permission denied")
@@ -178,21 +186,13 @@ if [[ $EUID -eq 0 ]] && command -v selinuxenabled >/dev/null 2>&1 && selinuxenab
   fi
 fi
 
-if [[ ! -f "$INSTALL_DIR/config/config.yaml" ]]; then
-  cp "$INSTALL_DIR/config/config.example.yaml" "$INSTALL_DIR/config/config.yaml"
-  if [[ $EUID -eq 0 ]]; then
-    chown "$SERVICE_USER:" "$INSTALL_DIR/config/config.yaml"
-  fi
-fi
-
-mkdir -p "$INSTALL_DIR/data"
 if [[ $EUID -eq 0 ]]; then
   # A trailing colon means "the user's primary group", which is not reliably
   # named after the user.
   chown -R "$SERVICE_USER:" "$INSTALL_DIR/data" "$INSTALL_DIR/config"
 fi
 
-chmod +x "$INSTALL_DIR/run.sh" "$INSTALL_DIR/install.sh"
+chmod +x "$INSTALL_DIR/run.sh" "$INSTALL_DIR/install.sh" "$INSTALL_DIR/bootstrap.py"
 
 # --------------------------------------------------------------------------
 # Serial access
@@ -302,11 +302,16 @@ if [[ -z "$IP" ]] && command -v ip >/dev/null 2>&1; then
 fi
 
 log "Done."
+echo
+# Prints the ports it found plus the config block to paste, which is the step
+# that otherwise stalls a first install.
+run_as_user "$INSTALL_DIR/.venv/bin/python" -m app.main --list-ports || true
+echo
 log "Local: http://127.0.0.1:8090"
 log "No radio configured yet, so the console shows a simulated network."
 log "  Add one under mesh.radios in $INSTALL_DIR/config/config.yaml"
-log "  List candidate ports with: ls -l /dev/serial/by-id/"
+log "  Re-list ports any time with: ./run.sh --list-ports"
 log "Transmitting is off by default (mesh.read_only: true) and needs auth."
 log "For LAN access: set server.host=0.0.0.0, enable auth, then open http://${IP:-<host-ip>}:8090"
 log "Manual start: cd $INSTALL_DIR && ./run.sh"
-log "Full guide: $INSTALL_DIR/README.md"
+log "Full guide: $INSTALL_DIR/docs/INSTALL.md"

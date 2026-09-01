@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import argparse
 import logging
 import os
+import sys
 from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import uvicorn
@@ -135,8 +138,54 @@ def _truthy(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
 
 
-def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+def configure_logging() -> Path | None:
+    """Log to stderr, or to a file when there is no stderr to log to.
+
+    Windows autostart runs the app under pythonw.exe so no console window
+    appears at logon, and pythonw gives the process no stderr at all: every log
+    line would go nowhere and a radio that failed to open would look like the
+    app doing nothing. Falling back to a file keeps that diagnosable. Rotation
+    is capped because this also runs off a Pi's SD card.
+
+    Returns the file being written to, or None when logging to stderr.
+    """
+    destination = os.environ.get("MESH_SPY_LOG_FILE", "").strip()
+    if not destination and sys.stderr is None:
+        destination = str(ROOT / "data" / "mesh-spy.log")
+
+    if not destination:
+        logging.basicConfig(level=logging.INFO)
+        return None
+
+    path = Path(destination)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handler = RotatingFileHandler(
+        path, maxBytes=2_000_000, backupCount=3, encoding="utf-8"
+    )
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    )
+    logging.basicConfig(level=logging.INFO, handlers=[handler])
+    return path
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(prog="app.main", description="Mesh-Spy console.")
+    parser.add_argument(
+        "--list-ports",
+        action="store_true",
+        help="list serial ports that look like a mesh radio, then exit",
+    )
+    parser.add_argument("--version", action="version", version=__version__)
+    args = parser.parse_args(argv)
+
+    if args.list_ports:
+        from app.core.ports import format_ports, list_ports
+
+        print(format_ports(list_ports()))
+        return
+
+    log_file = configure_logging()
     cfg = get_config()
     (ROOT / "data").mkdir(parents=True, exist_ok=True)
 
@@ -158,7 +207,17 @@ def main() -> None:
     if _truthy("MESH_SPY_NO_DEMO"):
         log.info("MESH_SPY_NO_DEMO=1 - the simulated network is disabled")
 
-    uvicorn.run(app, host=host, port=cfg.server.port, reload=False)
+    # uvicorn's default log config installs its own stdout handlers, which are
+    # useless under pythonw (there is no stdout) and would bypass the file
+    # anyway. Handing it None makes it inherit the root logger set up above, so
+    # "Uvicorn running on ..." and any bind error land in the same place.
+    uvicorn.run(
+        app,
+        host=host,
+        port=cfg.server.port,
+        reload=False,
+        log_config=None if log_file else uvicorn.config.LOGGING_CONFIG,
+    )
 
 
 if __name__ == "__main__":

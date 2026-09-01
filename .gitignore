@@ -5,6 +5,9 @@ venv/
 data/*.db
 data/*.db-wal
 data/*.db-shm
+# Written when there is no console to log to, ie. the Windows logon task.
+data/*.log
+data/*.log.*
 config/config.yaml
 .pytest_cache/
 *.egg-info/
